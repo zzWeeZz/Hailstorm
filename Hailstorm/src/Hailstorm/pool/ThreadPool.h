@@ -5,6 +5,10 @@
 #include <future>
 #include <string>
 #include <map>
+
+#include <condition_variable>
+#include <queue>
+
 namespace HailStorm
 {
 	enum class ThreadStatus
@@ -37,12 +41,15 @@ namespace HailStorm
 		static void Initialize(std::function<void(std::string message, Severity severity)>&& messageCallback);
 		template<class T, class ...Args>
 		static auto Dispatch(T&& task, Args&&... args);
+		static void Shutdown();
 	private:
 		static void Log(const std::string& messsage, Severity severity);
 		static void ThreadLoop();
 		inline static std::mutex s_LogMutex;
-		inline static std::mutex s_gobalThreadLock;
+		inline static std::mutex s_GlobalThreadLock;
 		inline static std::map<std::thread::id, ThreadInfo> s_Threads;
+		inline static std::queue<std::function<void()>> s_Tasks;
+		inline static std::condition_variable s_Condition;
 		inline static std::function<void(std::string message, Severity severity)> s_Logger;
 	};
 	template<class T, class ...Args>
@@ -52,6 +59,10 @@ namespace HailStorm
 		auto tsk = std::make_shared<std::packaged_task<RetVal()>>(std::bind(std::forward<T>(task), std::forward<Args>(args)...));
 
 		std::future<RetVal> ftr = tsk->get_future();
-		std::unique_lock 
+		std::unique_lock lock(s_GlobalThreadLock);
+
+		s_Tasks.push([tsk] {(*tsk)(); });
+		s_Condition.notify_one();
+		return ftr;
 	}
 }
