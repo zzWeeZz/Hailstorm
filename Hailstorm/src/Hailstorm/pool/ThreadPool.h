@@ -40,7 +40,7 @@ namespace HailStorm
 		// if the thead count is -1 hailstorm will take the cpu thead count.
 		static void Initialize(std::function<void(std::string message, Severity severity)>&& messageCallback);
 		template<class T, class ...Args>
-		static auto Dispatch(T&& task, Args&&... args);
+		static auto Work(T&& task, Args&&... args);
 		static void Shutdown();
 	private:
 		static void Log(const std::string& messsage, Severity severity);
@@ -53,7 +53,7 @@ namespace HailStorm
 		inline static std::function<void(std::string message, Severity severity)> s_Logger;
 	};
 	template<class T, class ...Args>
-	inline auto ThreadPool::Dispatch(T&& task, Args && ...args)
+	inline auto ThreadPool::Work(T&& task, Args && ...args)
 	{
 		using RetVal = std::invoke_result_t<T&&, Args&&...>;
 		auto tsk = std::make_shared<std::packaged_task<RetVal()>>(std::bind(std::forward<T>(task), std::forward<Args>(args)...));
@@ -62,6 +62,7 @@ namespace HailStorm
 		std::unique_lock lock(s_GlobalThreadLock);
 
 		s_Tasks.push([tsk] {(*tsk)(); });
+		lock.unlock();
 		s_Condition.notify_one();
 		return ftr;
 	}

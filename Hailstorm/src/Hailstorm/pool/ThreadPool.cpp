@@ -19,6 +19,7 @@ namespace HailStorm
 	}
 	void ThreadPool::Shutdown()
 	{
+		s_Condition.notify_all();
 		for (auto& thrID : s_Threads)
 		{
 			thrID.second.thread->join();
@@ -50,6 +51,7 @@ namespace HailStorm
 			Log("Thread: " + ss.str() + " has started working.", Severity::Log);
 			auto tsk = s_Tasks.front();
 			s_Tasks.pop();
+			lk.unlock();
 			localInfo.status = ThreadStatus::Working;
 			tsk();
 		}
